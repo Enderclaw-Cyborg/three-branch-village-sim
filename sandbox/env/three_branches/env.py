@@ -216,9 +216,10 @@ class ThreeBranchesEnv(ParallelEnv):
         if set(actions) != set(self.agents):
             raise ValueError("a parallel tick needs exactly one action for every active player")
         for agent, action in actions.items():
-            if not self.action_space(agent).contains(action):
+            checked_action = _box_action(action)
+            if not self.action_space(agent).contains(checked_action):
                 raise ValueError(f"{agent} supplied an action outside its action space")
-        character_actions = {agent: _plain_action(action) for agent, action in actions.items()}
+        character_actions = {agent: _plain_action(_box_action(action)) for agent, action in actions.items()}
         # The engine perceives every character as the last act of the tick, so the environment
         # dresses those perceptions rather than computing them a second time.
         perceptions = step(self.day, character_actions)
@@ -259,6 +260,16 @@ def _plain_action(action: Mapping[str, object]) -> dict[str, float | int]:
         "speed": float(cast(float, action["speed"])),
         "action": int(cast(int, action["action"])),
     }
+
+
+def _box_action(action: Mapping[str, object]) -> dict[str, object]:
+    """Convert scalar Box fields before Gymnasium validates the action mapping."""
+    checked = dict(action)
+    for name in ("heading", "speed"):
+        value = checked.get(name)
+        if isinstance(value, (int, float, np.integer, np.floating)):
+            checked[name] = np.asarray(value, dtype=np.float32)
+    return checked
 
 
 def _box_scalars(observation: dict[str, object]) -> None:

@@ -27,6 +27,25 @@ def _heading_to(start: tuple[float, float], end: tuple[float, float]) -> float:
     return math.degrees(math.atan2(end[1] - start[1], end[0] - start[0])) % 360.0
 
 
+def _village_dimensions(observation: object) -> tuple[float, float, tuple[float, float]] | None:
+    if not isinstance(observation, Mapping):
+        return None
+    village = observation.get("village")
+    if not isinstance(village, Mapping):
+        return None
+    size = village.get("size")
+    if not isinstance(size, Mapping):
+        return None
+    cells_x = _number(size.get("cells_x"))
+    cells_y = _number(size.get("cells_y"))
+    cell_size = _number(size.get("cell_size"))
+    if cells_x <= 0 or cells_y <= 0 or cell_size <= 0:
+        return None
+    width = cells_x * cell_size
+    height = cells_y * cell_size
+    return width, height, (width / 2.0, height / 2.0)
+
+
 _NPC_PLAYER_ID = re.compile(r"player_[1-9][0-9]*\Z")
 
 
@@ -68,6 +87,21 @@ class Agent:
         position = _position(me)
         seen = _seen_people(observation)
         target = self._find_target(seen, position)
+
+        if self._mode in {"wander", "move_on"}:
+            dimensions = _village_dimensions(observation)
+            if dimensions is not None:
+                width, height, centre = dimensions
+                margin = 2.0
+                at_edge = (
+                    position[0] <= margin
+                    or position[1] <= margin
+                    or position[0] >= width - margin
+                    or position[1] >= height - margin
+                )
+                if at_edge:
+                    self._heading = _heading_to(position, centre)
+                    self._remaining = max(self._remaining, 8)
 
         if self._mode == "wander" and target is not None:
             self._target = str(target["id"])
