@@ -12,6 +12,8 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Protocol, TypedDict, cast, runtime_checkable
 
+import numpy as np
+
 from .agent import has_chat, has_learn
 from .chat import ChatRouter
 from .clock import Clock
@@ -397,7 +399,7 @@ def illegal_action_reason(env: Any, player_id: str, observation: Any, info: Any,
     space = _declared_action_space(env, player_id)
     if space is not None:
         try:
-            contained = bool(space.contains(action))
+            contained = bool(space.contains(_box_scalar_action(action)))
         except Exception:  # noqa: BLE001 - a space that cannot judge does not veto an action
             contained = True
         if not contained:
@@ -422,6 +424,18 @@ def illegal_action_reason(env: Any, player_id: str, observation: Any, info: Any,
     if _masked_out(space, action, mask):
         return f"action {action!r} is not in the legal-move mask"
     return None
+
+
+def _box_scalar_action(action: Any) -> Any:
+    """Avoid Gymnasium scalar-Box coercion warnings during common action validation."""
+    if not isinstance(action, Mapping):
+        return action
+    checked = dict(action)
+    for name in ("heading", "speed"):
+        value = checked.get(name)
+        if isinstance(value, (int, float, np.integer, np.floating)):
+            checked[name] = np.asarray(value, dtype=np.float32)
+    return checked
 
 
 def _declared_action_space(env: Any, player_id: str) -> Any:

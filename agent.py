@@ -101,8 +101,10 @@ class Agent:
             cast(Mapping[str, object], prop)
             for prop in props.all(observation)
         ]
-        me.rng(observation, seed).shuffle(self._targets)
+        self._rng = me.rng(observation, seed)
+        self._rng.shuffle(self._targets)
         self._target_index = 0
+        self._pause_remaining = 0
         self._route: list[dict[str, int]] = []
         self._announced = False
 
@@ -110,8 +112,16 @@ class Agent:
         heading = me.heading(observation)
         expression = "wave" if people.seen(observation) else "none"
 
-        if self._target_index >= len(self._targets):
+        if not self._targets:
             return action.stand(heading, expression)
+
+        if self._pause_remaining > 0:
+            self._pause_remaining -= 1
+            return action.stand(heading, expression)
+
+        if self._target_index >= len(self._targets):
+            self._rng.shuffle(self._targets)
+            self._target_index = 0
 
         target = self._targets[self._target_index]
         target_id = target["id"]
@@ -125,6 +135,7 @@ class Agent:
         ):
             self._target_index += 1
             self._route = []
+            self._pause_remaining = self._rng.randint(2, 8)
             self._announced = False
             return action.stand(heading, "use")
 
@@ -169,8 +180,8 @@ class Agent:
     def chat(self, inbox: list[dict]) -> list[dict]:
         """Tell nearby villagers which independent task this instance owns."""
 
-        if self._target_index >= len(self._targets) or self._announced:
+        if not self._targets or self._announced:
             return []
-        target = self._targets[self._target_index]
+        target = self._targets[self._target_index % len(self._targets)]
         self._announced = True
         return [{"to": None, "text": f"I am working on {target['id']}."}]

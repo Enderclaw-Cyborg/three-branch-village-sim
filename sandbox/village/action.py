@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import numpy as np
+
 from sandbox.observation_types import ThreeBranchesAction
 
 from ._model import RULES
@@ -15,8 +17,8 @@ def walk(heading: float, speed: float = 1.0, expression: str = "none") -> ThreeB
     if expression not in _EXPRESSIONS:
         raise ValueError(f"unknown expression {expression!r}")
     order: ThreeBranchesAction = {
-        "heading": float(heading) % 360.0,
-        "speed": min(1.0, max(0.0, float(speed))),
+        "heading": np.asarray(float(heading) % 360.0, dtype=np.float32),
+        "speed": np.asarray(min(1.0, max(0.0, float(speed))), dtype=np.float32),
         "action": _action(expression),
     }
     return order
